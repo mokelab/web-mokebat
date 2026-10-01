@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>モケラバトル</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --text: #1d2330;
+    --muted: #6b7384;
+    --border: #d9dde5;
+    --p0: #2f6fdb;
+    --p1: #d2463c;
+    --hp: #3aa55d;
+    --hp-low: #d9a21b;
+    --hp-crit: #d2463c;
+    --charge: #7a5cd6;
+    --actor: #fff3c4;
+    --hit: #ffe0dc;
+    --current: #e4ecff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15181e;
+      --panel: #1e222b;
+      --text: #e3e6ec;
+      --muted: #8d95a6;
+      --border: #333a47;
+      --p0: #6b9cf0;
+      --p1: #f07a70;
+      --actor: #4a4120;
+      --hit: #4d2a27;
+      --current: #263452;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0 auto;
+    padding: 16px;
+    max-width: 1000px;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  }
+  h1 { font-size: 18px; margin: 0 0 12px; }
+  h2 { font-size: 15px; margin: 0 0 8px; }
+  button, select, input { font: inherit; color: inherit; }
+  button, select {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  button:disabled { opacity: .4; cursor: default; }
+  button.primary { background: var(--p0); border-color: var(--p0); color: #fff; font-weight: 600; }
+  button.on { background: var(--current); border-color: var(--p0); }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+  .muted { color: var(--muted); }
+  .small { font-size: 12px; }
+  .error { color: var(--hp-crit); white-space: pre-wrap; }
+  .p0 { color: var(--p0); }
+  .p1 { color: var(--p1); }
+  .screen[hidden] { display: none; }
+
+  #title { text-align: center; padding-top: 24px; }
+  #title img { max-width: min(280px, 70vw); height: auto; }
+  #title h1 { font-size: 28px; margin: 12px 0 4px; }
+  #title button { font-size: 18px; padding: 10px 28px; margin-top: 16px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+  .card {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px;
+    transition: background-color .2s;
+  }
+  .card .name { font-weight: 600; }
+  .card.pick { cursor: pointer; text-align: left; background: var(--panel); width: 100%; }
+  .card.pick:hover:not(:disabled):not(.off) { border-color: var(--p0); }
+  .card.pick.off { opacity: .4; cursor: default; }
+  .card.chosen { border-color: var(--p0); background: var(--current); }
+  .card.mine { border-left: 4px solid var(--p0); }
+  .card.theirs { border-left: 4px solid var(--p1); }
+  .card.back { margin-left: 32px; border-style: dashed; border-left-style: solid; }
+  .card.empty { color: var(--muted); text-align: center; }
+  .card.actor { background: var(--actor); }
+  .card.hit { background: var(--hit); }
+  .skills { margin: 4px 0 0; padding: 0; list-style: none; font-size: 12px; }
+  .skills li.known { font-weight: 600; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .chip { font-size: 12px; padding: 2px 8px; border-radius: 12px; background: var(--bg); }
+  .chip.known { font-weight: 600; border-color: var(--p1); }
+  dialog {
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0;
+    width: min(360px, calc(100vw - 32px));
+  }
+  dialog::backdrop { background: rgba(0, 0, 0, .5); }
+  dialog .body { padding: 12px; }
+  dialog ul { margin: 0 0 12px; padding-left: 1.2em; }
+  details summary { cursor: pointer; font-size: 12px; color: var(--muted); }
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    padding: 0 6px;
+    border-radius: 9px;
+    border: 1px solid var(--border);
+    margin-left: 4px;
+    font-weight: normal;
+  }
+  .badge.pos { border-color: currentColor; }
+  .bar { display: grid; grid-template-columns: 4em 1fr 6em; gap: 6px; align-items: center; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .bar .track { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+  .bar .fill { height: 100%; transition: width .2s; }
+  .bar .num { text-align: right; }
+
+  #board { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  /* 2 列のときは中央で向かい合うので、左側（自陣）の後衛は中央から遠い左へ寄せる */
+  @media (min-width: 761px) {
+    #board .side.s0 .card.back { margin-left: 0; margin-right: 32px; }
+  }
+  /* スマホは 1 列で、相手が上、自陣が下 */
+  @media (max-width: 760px) {
+    #board { grid-template-columns: 1fr; }
+    #board .side.s1 { order: -1; }
+  }
+  .side h2 .formation { font-weight: normal; font-size: 12px; margin-left: 6px; }
+  .slots { display: flex; flex-direction: column; gap: 8px; }
+  .bench { margin-top: 8px; font-size: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .bench span { border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; }
+  .bench span.fainted { color: var(--muted); text-decoration: line-through; }
+  .bench span.actor { background: var(--actor); }
+  .bench span.plain { border: none; padding: 0; }
+
+  /* いま起きていることは、盤面を下に送っても見えるようにする */
+  #now { position: sticky; top: 0; z-index: 2; }
+  #status { font-weight: 600; font-size: 16px; min-height: 3em; margin-top: 6px; }
+
+  /* ---- 対戦の演出 ---- */
+  #board .card { position: relative; }
+  /* 行動するユニットは相手の側へ踏み込む（2 列なら横、1 列なら縦） */
+  #board .side.s0 { --dx: 14px; --dy: 0px; }
+  #board .side.s1 { --dx: -14px; --dy: 0px; }
+  @media (max-width: 760px) {
+    #board .side.s0 { --dx: 0px; --dy: -10px; }
+    #board .side.s1 { --dx: 0px; --dy: 10px; }
+  }
+  #board .card.actor { animation: lunge .45s ease-out; outline: 2px solid var(--hp-low); }
+  #board .card.target { outline: 2px dashed var(--hp-crit); }
+  #board .card.hit { animation: shake .4s; outline: 2px solid var(--hp-crit); }
+  #board .card.faint { animation: faint .7s forwards; }
+  @keyframes lunge {
+    0% { transform: none; }
+    40% { transform: translate(var(--dx), var(--dy)) scale(1.03); }
+    100% { transform: none; }
+  }
+  @keyframes shake {
+    0%, 100% { transform: none; }
+    20% { transform: translateX(-6px); }
+    40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
+  }
+  @keyframes faint {
+    to { opacity: .25; transform: translateY(6px); filter: grayscale(1); }
+  }
+  /* バーは直前の値から今の値へ動かす */
+  #board .card[style*="--hp-from"] .hp .fill { animation: hp-move .5s ease-out; }
+  #board .card[style*="--hp-from"] .charge .fill { animation: charge-move .5s ease-out; }
+  @keyframes hp-move { from { width: var(--hp-from); } }
+  @keyframes charge-move { from { width: var(--charge-from); } }
+  .popup {
+    position: absolute;
+    right: 12px;
+    top: 2px;
+    z-index: 1;
+    font-size: 22px;
+    font-weight: 800;
+    pointer-events: none;
+    text-shadow: 0 0 3px var(--panel), 0 0 3px var(--panel);
+    animation: pop .9s ease-out forwards;
+  }
+  .popup.dmg { color: var(--hp-crit); }
+  .popup.heal { color: var(--charge); }
+  .popup.note { color: var(--text); font-size: 16px; }
+  @keyframes pop {
+    0% { transform: translateY(8px) scale(.6); opacity: 0; }
+    20% { transform: translateY(0) scale(1.15); opacity: 1; }
+    70% { transform: translateY(-6px) scale(1); opacity: 1; }
+    100% { transform: translateY(-14px); opacity: .85; }
+  }
+  #input .slot-input { margin-bottom: 10px; }
+  #input .options { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  #input .options button { text-align: left; }
+  #input .options .sub { display: block; font-size: 11px; color: var(--muted); }
+  /* 2 段目: 誰に・誰と */
+  #input .options.second { align-items: center; margin-left: 16px; padding-left: 10px; border-left: 3px solid var(--p0); }
+  #input .ask { font-weight: 600; }
+  .badge.done { border-color: var(--hp); color: var(--hp); }
+  #log {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 30vh;
+    overflow-y: auto;
+    font-size: 13px;
+  }
+  #log li { padding: 1px 6px; }
+  #log li.turn { font-weight: 600; margin-top: 6px; }
+  #log li.sub { padding-left: 24px; }
+  #result h2 { font-size: 20px; }
+</style>
+</head>
+<body>
+
+<div id="loading" class="panel">読み込み中…</div>
+
+<div id="title" class="screen" hidden>
+  <img src="core/moke.png" alt="モケラと、帽子の上のぴよ">
+  <h1>モケラバトル</h1>
+  <div class="muted">前衛と後衛で戦う、2 対 2 の同時出しバトル</div>
+  <button id="start" class="primary">ぴよと遊ぶ</button>
+</div>
+
+<div id="stage" class="screen" hidden>
+  <h1>ぴよの強さ</h1>
+  <div id="stages" class="grid"></div>
+  <div class="row" style="margin-top:12px"><button data-go="title">もどる</button></div>
+</div>
+
+<div id="build" class="screen" hidden>
+  <h1>構築 <span class="muted small">コマを 6 体選び、それぞれに武器を持たせる</span></h1>
+  <div class="panel">
+    <div class="row">
+      <span>おすすめの構築:</span>
+      <span id="presets" class="row"></span>
+      <button id="clearTeam">空にする</button>
+    </div>
+  </div>
+  <div class="panel">
+    <h2 class="p0">あなたの構築 <span id="teamCount" class="muted small"></span></h2>
+    <div id="team" class="grid"></div>
+    <div id="teamError" class="error"></div>
+    <div class="row" style="margin-top:8px">
+      <button data-go="stage">もどる</button>
+      <button id="toSelect" class="primary">この構築で戦う</button>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>コマ <span class="muted small">押すと構築に入る</span></h2>
+    <div id="pool" class="grid"></div>
+  </div>
+  <div class="panel">
+    <h2>武器</h2>
+    <div id="weapons" class="grid"></div>
+  </div>
+</div>
+
+<div id="select" class="screen" hidden>
+  <h1>選出 <span id="setGame" class="muted small"></span></h1>
+  <div class="panel">
+    <h2 class="p1">ぴよの構築 <span class="muted small">ここから 4 体が出てくる</span></h2>
+    <div id="oppTeam" class="grid"></div>
+  </div>
+  <div class="panel">
+    <h2 class="p0">あなたの選出 <span class="muted small">出す順に 4 体。最初の 2 体が先発</span></h2>
+    <div id="myTeam" class="grid"></div>
+    <div id="picks" style="margin-top:8px"></div>
+    <div class="row" style="margin-top:8px">
+      <button id="selectBack">構築にもどる</button>
+      <button id="toBattle" class="primary">対戦開始</button>
+    </div>
+  </div>
+</div>
+
+<div id="battle" class="screen" hidden>
+  <div id="now" class="panel">
+    <div class="row">
+      <span id="turnInfo" class="muted"></span>
+      <label class="small">表示の速さ
+        <select id="speed">
+          <option value="400">速い</option>
+          <option value="900" selected>ふつう</option>
+          <option value="1600">ゆっくり</option>
+          <option value="0">手動（1 つずつ）</option>
+        </select>
+      </label>
+      <button id="next" class="primary" hidden>次へ ▶</button>
+      <button id="skip" hidden>とばす</button>
+    </div>
+    <div id="status"></div>
+  </div>
+  <div id="board" class="panel"></div>
+  <div id="input" class="panel" hidden></div>
+  <div id="result" class="panel" hidden>
+    <h2 id="resultText"></h2>
+    <div class="row">
+      <button id="again" class="primary">もう一度（同じ構築で次の試合）</button>
+      <button id="rebuild">構築から</button>
+      <button id="download">棋譜をダウンロード</button>
+    </div>
+    <div class="muted small" style="margin-top:6px">「もう一度」では、この試合で見た相手の技が次の試合でも分かっています（ぴよも同じ）。棋譜は棋譜ビューアで読めます。</div>
+  </div>
+  <div class="panel">
+    <ul id="log"></ul>
+  </div>
+  <div id="battleError" class="error"></div>
+</div>
+
+<dialog id="skillDialog">
+  <div class="body">
+    <h2 id="skillName"></h2>
+    <ul id="skillBody"></ul>
+    <div class="row"><button data-close>とじる</button></div>
+  </div>
+</dialog>
+
+<script src="battle-common.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
