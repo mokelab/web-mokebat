@@ -14,7 +14,7 @@ const LABELS = ['あなた', 'ぴよ'];
  * 対応は仮で、遊んでから決める（docs/web-app.md §6）
  */
 const STAGES = [
-  { name: 'あくび', note: '手加減している', ai: 'steady:easy', team: 'gamma' },
+  { name: 'あくび', note: '手加減している', ai: 'steady:sleepy', team: 'beta' },
   { name: 'ふつう', note: '普通に相手をする', ai: 'tactician:normal', team: 'beta' },
   { name: 'むきになる', note: '本気を出しかける', ai: 'aggressive:hard', team: 'alpha' },
   { name: '本気', note: '帽子から降りる', ai: 'fable', team: 'beta' },
